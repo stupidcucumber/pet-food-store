@@ -1,0 +1,22 @@
+[tool.flake8]
+max-line-length=88
+exclude = [
+    ".git",
+    "__pycache__"
+]
+extend-ignore = [
+    "E203",
+    "D100"
+]
+per-file-ignores = """
+    __init__.py: F401
+"""
+
+[tool.numpydoc_validation]
+checks = [
+    "all",   # report on all checks, except the below
+    "EX01",
+    "SA01",
+    "ES01",
+    "GL01",
+]
