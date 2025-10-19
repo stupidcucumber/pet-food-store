@@ -4,8 +4,10 @@ from typing import Annotated, AsyncGenerator
 
 import aiosqlite
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Path, Request, status
 from fastapi.responses import JSONResponse
+from src.data.models import NotFoundProduct, ProductWithId, ProductWithIdList
+from src.data.queries import select_product, select_products
 
 load_dotenv()
 
@@ -109,3 +111,94 @@ async def api_status(
     return JSONResponse(
         content={"database_status": database_alive}, status_code=status.HTTP_200_OK
     )
+
+
+@app.get("/api/products", response_model=ProductWithIdList, description="")
+async def get_products(
+    connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)]
+) -> JSONResponse:
+    """Get all products from a database.
+
+    Parameters
+    ----------
+    connection : Annotated[aiosqlite.Connection, Depends(get_db_connection)]
+        Connection to the database that was saved in FastAPI state.
+
+    Returns
+    -------
+    JSONResponse
+        List of all products in the database.
+
+    Raises
+    ------
+    HTTPException
+        In case server encounteres an unexpected error.
+    """
+    try:
+
+        products = await select_products(connection=connection)
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Exception caught: {e}.",
+        )
+
+    return JSONResponse(content=products.model_dump(), status_code=status.HTTP_200_OK)
+
+
+@app.get(
+    "/api/products/{id}",
+    response_model=ProductWithId,
+    responses={status.HTTP_404_NOT_FOUND: {"model": NotFoundProduct}},
+)
+async def get_product(
+    id: Annotated[
+        int,
+        Path(
+            ge=0,
+            title="Product ID",
+            description="Id of the product to fetch from the database.",
+        ),
+    ],
+    connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
+) -> JSONResponse:
+    """Get product by id.
+
+    Parameters
+    ----------
+    id : Annotated
+        ID of the product to get.
+    connection : Annotated[aiosqlite.Connection, Depends(get_db_connection)]
+        Connection to the database that was saved in FastAPI state.
+
+    Returns
+    -------
+    JSONResponse
+        Product with the specified id if such exists.
+
+    Raises
+    ------
+    HTTPException
+        In case server encounteres an unexpected error.
+    """
+    try:
+
+        product = await select_product(id, connection)
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Exception caught: {e}.",
+        )
+
+    if not product:
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Product with id={id} is not found.",
+        )
+
+    return JSONResponse(content=product.model_dump(), status_code=status.HTTP_200_OK)
