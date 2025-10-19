@@ -6,7 +6,7 @@ exclude = [
 ]
 extend-ignore = [
     "E203",
-    "D100"
+    "D100",
 ]
 per-file-ignores = """
     __init__.py: F401
@@ -19,4 +19,5 @@ checks = [
     "SA01",
     "ES01",
     "GL01",
+    "GL08"
 ]
