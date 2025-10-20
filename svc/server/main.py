@@ -4,7 +4,7 @@ from typing import Annotated, AsyncGenerator
 
 import aiosqlite
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Path, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Path, Request, Response, status
 from fastapi.responses import JSONResponse
 from src.data.models import (
     NotFoundProduct,
@@ -14,6 +14,7 @@ from src.data.models import (
     ProductWithIdList,
 )
 from src.data.queries import (
+    deactivate_product,
     insert_product,
     select_product,
     select_products,
@@ -308,6 +309,73 @@ async def put_product(
             detail=f"Could not update product with id={id}: {e}",
         )
 
+    if product_with_id is None:
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Product with product_id={id} is not present in the database.",
+        )
+
     return JSONResponse(
         content=product_with_id.model_dump(), status_code=status.HTTP_200_OK
     )
+
+
+@app.delete(
+    "/app/product/{id}",
+    responses={status.HTTP_404_NOT_FOUND: {"model": NotFoundProduct}},
+)
+async def delete_product(
+    id: Annotated[
+        int,
+        Path(
+            ge=0,
+            title="Product ID",
+            description="Id of the product you want to delete.",
+        ),
+    ],
+    connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
+) -> Response:
+    """Set "active" column to false, virtually deleting product from database.
+
+    Parameters
+    ----------
+    id : Annotated
+        Id of the product you want to delete.
+    connection : Annotated[aiosqlite.Connection, Depends(get_db_connection)]
+        Connection to the database that was saved in FastAPI state.
+
+    Returns
+    -------
+    Response
+        A response with status_code=204 if everything is right. No body is
+        returned.
+
+    Raises
+    ------
+    HTTPException
+        In case server encounteres an unexpected error.
+    """
+    try:
+
+        deactivated_product = await deactivate_product(id, connection)
+
+    except Exception as e:
+
+        await connection.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not delete product with id={id}: {e}",
+        )
+
+    if deactivated_product is None:
+
+        await connection.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Product with product_id={id} is not present in the database.",
+        )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
