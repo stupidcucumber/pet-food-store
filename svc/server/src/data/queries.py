@@ -1,7 +1,13 @@
 from typing import Optional, Tuple
 
 from aiosqlite import Connection
-from src.data.models import Product, ProductUpdate, ProductWithId, ProductWithIdList
+from src.data.models import (
+    Product,
+    ProductUpdate,
+    ProductWithId,
+    ProductWithIdList,
+    RequestedSellingQuantity,
+)
 
 
 async def _tuple2productWithId(item: Tuple) -> ProductWithId:
@@ -15,9 +21,7 @@ async def _tuple2productWithId(item: Tuple) -> ProductWithId:
     )
 
 
-async def select_product(
-    product_id: int, connection: Connection
-) -> Optional[ProductWithId]:
+async def select_product(product_id: int, connection: Connection) -> ProductWithId:
     """Select a specific product by id.
 
     Parameters
@@ -29,8 +33,13 @@ async def select_product(
 
     Returns
     -------
-    Optional[ProductWithId]
+    ProductWithId
         If such product exists returns this product.
+
+    Raises
+    ------
+    RuntimeError
+        In case selected product does not exist.
     """
     async with connection.cursor() as cursor:
 
@@ -40,7 +49,7 @@ async def select_product(
 
     if item is None:
 
-        return None
+        raise RuntimeError(f"There is no product with product_id={product_id}")
 
     return await _tuple2productWithId(item)
 
@@ -108,7 +117,7 @@ async def insert_product(product: Product, connection: Connection) -> ProductWit
 
 async def update_product(
     product_id: int, product: ProductUpdate, connection: Connection
-) -> Optional[ProductWithId]:
+) -> ProductWithId:
     """Update product with new values.
 
     Parameters
@@ -122,8 +131,13 @@ async def update_product(
 
     Returns
     -------
-    Optional[ProductWithId]
+    ProductWithId
         Newly created product.
+
+    Raises
+    ------
+    RuntimeError
+        In case selected product does not exist.
     """
     async with connection.cursor() as cursor:
 
@@ -142,7 +156,7 @@ async def update_product(
 
     if result is None:
 
-        return None
+        raise RuntimeError(f"There is no product with product_id={product_id}")
 
     await connection.commit()
 
@@ -165,6 +179,11 @@ async def deactivate_product(
     -------
     Optional[ProductWithId]
         Product with Id that you deleted, if such exists.
+
+    Raises
+    ------
+    RuntimeError
+        In case selected product does not exist.
     """
     async with connection.cursor() as cursor:
 
@@ -179,8 +198,65 @@ async def deactivate_product(
 
     if result is None:
 
-        return None
+        raise RuntimeError(f"There is no product with product_id={product_id}")
 
     await connection.commit()
 
     return await _tuple2productWithId(result)
+
+
+async def sell_product(
+    product_id: int, quantity: RequestedSellingQuantity, connection: Connection
+) -> ProductWithId:
+    """Sell a specific amount of product.
+
+    Parameters
+    ----------
+    product_id : int
+        Id of the product you want to sell.
+    quantity : RequestedSellingQuantity
+        How much product you want to sell.
+    connection : Connection
+        A connection to the database that contains products table.
+
+    Returns
+    -------
+    ProductWithId
+        Updated product.
+
+    Raises
+    ------
+    RuntimeError
+        In case selected product does not exist, is not active, or does not have
+        enought quantity.
+    """
+    product = await select_product(product_id, connection)
+
+    if not product.active:
+
+        raise RuntimeError("Selectected product is not active.")
+
+    if product.quantity < quantity.quantity:
+
+        raise RuntimeError("Not enough product to sell!")
+
+    async with connection.cursor() as cursor:
+
+        new_quantity = product.quantity - quantity.quantity
+
+        await cursor.execute(
+            "UPDATE products SET quantity=? WHERE product_id=? "
+            "RETURNING "
+            "product_id, product_name, product_description, quantity, price, active;",
+            [new_quantity, product_id],
+        )
+
+        left_product = await cursor.fetchone()
+
+    if left_product is None:
+
+        raise RuntimeError(f"There is no product with product_id={product_id}")
+
+    await connection.commit()
+
+    return await _tuple2productWithId(left_product)

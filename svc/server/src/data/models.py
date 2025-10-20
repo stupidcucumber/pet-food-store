@@ -30,7 +30,13 @@ class ProductUpdate(BaseModel):
 class ProductWithId(Product):
     """Pet food store product, but with ID."""
 
-    product_id: int
+    product_id: int = Field(ge=0, description="Id of the product.")
+
+
+class RequestedSellingQuantity(BaseModel):
+    """Selling quantity of the product."""
+
+    quantity: int = Field(gt=0, description="Quantity of the product you want to sell.")
 
 
 class ProductWithIdList(RootModel):
