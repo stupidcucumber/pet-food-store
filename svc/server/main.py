@@ -12,6 +12,8 @@ from src.data.models import (
     ProductUpdate,
     ProductWithId,
     ProductWithIdList,
+    Recommendation,
+    RecommendationPetDescription,
     RequestedSellingQuantity,
 )
 from src.data.queries import (
@@ -22,6 +24,7 @@ from src.data.queries import (
     sell_product,
     update_product,
 )
+from src.llm.geminillm import GeminiRecommender
 
 load_dotenv()
 
@@ -45,6 +48,10 @@ async def lifespan_event(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     app.state.database = await aiosqlite.connect(
         os.environ.get("DATABASE_PATH", "default.sqlite")
+    )
+
+    app.state.gemini_recommender = GeminiRecommender(
+        api_key=os.environ.get("GEMINI_API_KEY"), connection=app.state.database
     )
 
     async with app.state.database.cursor() as cursor:
@@ -80,6 +87,22 @@ async def get_db_connection(request: Request) -> aiosqlite.Connection:
         Connection to the database.
     """
     return request.app.state.database
+
+
+async def get_gemini_recommender(request: Request) -> GeminiRecommender:
+    """Get current GeminiRecommender class.
+
+    Parameters
+    ----------
+    request : Request
+        Received request from client.
+
+    Returns
+    -------
+    GeminiRecommender
+        Recommender that uses GeminiAPI.
+    """
+    return request.app.state.gemini_recommender
 
 
 app = FastAPI(lifespan=lifespan_event)
@@ -392,3 +415,25 @@ async def post_product_sell(
     return JSONResponse(
         content=left_product.model_dump(), status_code=status.HTTP_200_OK
     )
+
+
+@app.post("/app/recommendation", response_model=Recommendation)
+async def post_recommendation(
+    description: RecommendationPetDescription,
+    gemini_recommender: Annotated[GeminiRecommender, Depends(get_gemini_recommender)],
+) -> JSONResponse:
+
+    try:
+
+        response = await gemini_recommender.recommend(description)
+
+    except Exception as e:
+
+        await gemini_recommender.connection.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not get a recommendation due to error: {e}",
+        )
+
+    return JSONResponse(content=response.model_dump(), status_code=status.HTTP_200_OK)
