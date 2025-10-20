@@ -49,7 +49,7 @@ class Recommendation(BaseModel):
     """Recommended product and explanation for it."""
 
     product_id: int = Field(ge=0, description="Id of the recommended product.")
-    name: str = Field(ge=0, description="Name of the recommended product.")
+    name: str = Field(description="Name of the recommended product.")
     reason: str = Field(description="Explanation about why this product suits the pet.")
 
 
