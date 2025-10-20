@@ -4,8 +4,10 @@ from typing import Annotated, AsyncGenerator
 
 import aiosqlite
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Path, Request, Response, status
+from fastapi import Depends, FastAPI, Path, Request, Response, status
 from fastapi.responses import JSONResponse
+from google.genai.errors import APIError
+from src.data.exceptions import PetStoreException
 from src.data.models import (
     NotFoundProduct,
     Product,
@@ -108,6 +110,43 @@ async def get_gemini_recommender(request: Request) -> GeminiRecommender:
 app = FastAPI(lifespan=lifespan_event)
 
 
+@app.exception_handler(aiosqlite.Error)
+async def database_error_exception_handler(
+    request: Request, exc: aiosqlite.Error
+) -> JSONResponse:
+
+    await request.app.state.database.rollback()
+
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "database_error": exc.sqlite_errorname,
+        },
+    )
+
+
+@app.exception_handler(APIError)
+async def gemini_api_exception_handler(request: Request, exc: APIError) -> JSONResponse:
+
+    await request.app.state.database.rollback()
+
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"gemini_error": exc}
+    )
+
+
+@app.exception_handler(PetStoreException)
+async def pet_store_custom_exceptions_handler(
+    request: Request, exc: PetStoreException
+) -> JSONResponse:
+
+    await request.app.state.database.rollback()
+
+    return JSONResponse(
+        status_code=exc.status_code, content={"store_error": exc.detail}
+    )
+
+
 @app.get("/api/status")
 async def api_status(
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)]
@@ -137,10 +176,6 @@ async def api_status(
 
             await cursor.execute("SELECT 1;")
 
-    except aiosqlite.Error:
-
-        database_alive = False
-
     except Exception:
 
         database_alive = False
@@ -165,22 +200,8 @@ async def get_products(
     -------
     JSONResponse
         List of all products in the database.
-
-    Raises
-    ------
-    HTTPException
-        In case server encounteres an unexpected error.
     """
-    try:
-
-        products = await select_products(connection=connection)
-
-    except Exception as e:
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Exception caught: {e}.",
-        )
+    products = await select_products(connection=connection)
 
     return JSONResponse(content=products.model_dump(), status_code=status.HTTP_200_OK)
 
@@ -214,22 +235,8 @@ async def get_product(
     -------
     JSONResponse
         Product with the specified id if such exists.
-
-    Raises
-    ------
-    HTTPException
-        In case server encounteres an unexpected error.
     """
-    try:
-
-        product = await select_product(id, connection)
-
-    except Exception as e:
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Exception caught: {e}.",
-        )
+    product = await select_product(id, connection)
 
     return JSONResponse(content=product.model_dump(), status_code=status.HTTP_200_OK)
 
@@ -252,24 +259,8 @@ async def post_product(
     -------
     JSONResponse
         Newly created product along with its assigned id.
-
-    Raises
-    ------
-    HTTPException
-        In case server encounteres an unexpected error.
     """
-    try:
-
-        product_with_id = await insert_product(product, connection)
-
-    except Exception as e:
-
-        await connection.rollback()
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Could not insert a product into the database: {e}",
-        )
+    product_with_id = await insert_product(product, connection)
 
     return JSONResponse(
         content=product_with_id.model_dump(), status_code=status.HTTP_200_OK
@@ -308,24 +299,8 @@ async def put_product(
     -------
     JSONResponse
         Newly created product along with its assigned id.
-
-    Raises
-    ------
-    HTTPException
-        In case server encounteres an unexpected error.
     """
-    try:
-
-        product_with_id = await update_product(id, product, connection)
-
-    except Exception as e:
-
-        await connection.rollback()
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Could not update product with id={id}: {e}",
-        )
+    product_with_id = await update_product(id, product, connection)
 
     return JSONResponse(
         content=product_with_id.model_dump(), status_code=status.HTTP_200_OK
@@ -361,24 +336,8 @@ async def delete_product(
     Response
         A response with status_code=204 if everything is right. No body is
         returned.
-
-    Raises
-    ------
-    HTTPException
-        In case server encounteres an unexpected error.
     """
-    try:
-
-        _ = await deactivate_product(id, connection)
-
-    except Exception as e:
-
-        await connection.rollback()
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Could not delete product with id={id}: {e}",
-        )
+    _ = await deactivate_product(id, connection)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -398,19 +357,7 @@ async def post_product_sell(
     quantity: RequestedSellingQuantity,
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
 ) -> JSONResponse:
-
-    try:
-
-        left_product = await sell_product(id, quantity, connection)
-
-    except Exception as e:
-
-        await connection.rollback()
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Could not sell product with id={id}: {e}",
-        )
+    left_product = await sell_product(id, quantity, connection)
 
     return JSONResponse(
         content=left_product.model_dump(), status_code=status.HTTP_200_OK
@@ -422,18 +369,6 @@ async def post_recommendation(
     description: RecommendationPetDescription,
     gemini_recommender: Annotated[GeminiRecommender, Depends(get_gemini_recommender)],
 ) -> JSONResponse:
-
-    try:
-
-        response = await gemini_recommender.recommend(description)
-
-    except Exception as e:
-
-        await gemini_recommender.connection.rollback()
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Could not get a recommendation due to error: {e}",
-        )
+    response = await gemini_recommender.recommend(description)
 
     return JSONResponse(content=response.model_dump(), status_code=status.HTTP_200_OK)
