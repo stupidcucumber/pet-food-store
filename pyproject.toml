@@ -7,6 +7,8 @@ exclude = [
 extend-ignore = [
     "E203",
     "D100",
+    "D107",
+    "ANN101",
     "DOC105",
     "D104"
 ]

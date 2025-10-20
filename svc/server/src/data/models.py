@@ -39,6 +39,20 @@ class RequestedSellingQuantity(BaseModel):
     quantity: int = Field(gt=0, description="Quantity of the product you want to sell.")
 
 
+class RecommendationPetDescription(BaseModel):
+    """Description for the pet."""
+
+    description: str = Field(min_length=5, max_length=1500)
+
+
+class Recommendation(BaseModel):
+    """Recommended product and explanation for it."""
+
+    product_id: int = Field(ge=0, description="Id of the recommended product.")
+    name: str = Field(ge=0, description="Name of the recommended product.")
+    reason: str = Field(description="Explanation about why this product suits the pet.")
+
+
 class ProductWithIdList(RootModel):
     """List of products with ID."""
 
