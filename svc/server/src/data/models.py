@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, RootModel
 
@@ -15,6 +15,16 @@ class Product(BaseModel):
         description="Price for a single unit in the store. Cannot be negative.", gt=0
     )
     active: bool = Field(description="Whether product can be sold.")
+
+
+class ProductUpdate(BaseModel):
+    """Product, but with all fields non-required."""
+
+    product_name: Optional[str] = Field(None, max_length=255)
+    product_description: Optional[str] = Field(None)
+    quantity: Optional[int] = Field(None, ge=0)
+    price: Optional[float] = Field(None, gt=0)
+    active: Optional[bool] = Field(None)
 
 
 class ProductWithId(Product):

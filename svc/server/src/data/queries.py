@@ -1,7 +1,7 @@
 from typing import Optional, Tuple
 
 from aiosqlite import Connection
-from src.data.models import Product, ProductWithId, ProductWithIdList
+from src.data.models import Product, ProductUpdate, ProductWithId, ProductWithIdList
 
 
 async def _tuple2productWithId(item: Tuple) -> ProductWithId:
@@ -97,6 +97,45 @@ async def insert_product(product: Product, connection: Connection) -> ProductWit
             "RETURNING "
             "product_id, product_name, product_description, quantity, price, active;",
             list(product.model_dump().values()),
+        )
+
+        result = await cursor.fetchone()
+
+    await connection.commit()
+
+    return await _tuple2productWithId(result)
+
+
+async def update_product(
+    product_id: int, product: ProductUpdate, connection: Connection
+) -> ProductWithId:
+    """Update product with new values.
+
+    Parameters
+    ----------
+    product_id : int
+        Id of the product you will need to update.
+    product : ProductUpdate
+        Values that needs to be updated.
+    connection : Connection
+        A connection to the database that contains products table.
+
+    Returns
+    -------
+    ProductWithId
+        Newly created product.
+    """
+    async with connection.cursor() as cursor:
+
+        product_dict = product.model_dump(exclude_none=True)
+
+        set_string = ", ".join([key + "=?" for key in product_dict.keys()])
+
+        await cursor.execute(
+            f"UPDATE products SET {set_string} WHERE product_id=? "
+            "RETURNING "
+            "product_id, product_name, product_description, quantity, price, active;",
+            (*list(product_dict.values()), product_id),
         )
 
         result = await cursor.fetchone()

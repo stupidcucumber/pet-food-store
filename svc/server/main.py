@@ -6,8 +6,19 @@ import aiosqlite
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Path, Request, status
 from fastapi.responses import JSONResponse
-from src.data.models import NotFoundProduct, Product, ProductWithId, ProductWithIdList
-from src.data.queries import insert_product, select_product, select_products
+from src.data.models import (
+    NotFoundProduct,
+    Product,
+    ProductUpdate,
+    ProductWithId,
+    ProductWithIdList,
+)
+from src.data.queries import (
+    insert_product,
+    select_product,
+    select_products,
+    update_product,
+)
 
 load_dotenv()
 
@@ -239,6 +250,62 @@ async def post_product(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Could not insert a product into the database: {e}",
+        )
+
+    return JSONResponse(
+        content=product_with_id.model_dump(), status_code=status.HTTP_200_OK
+    )
+
+
+@app.put(
+    "/api/product/{id}",
+    response_model=ProductWithId,
+    responses={status.HTTP_404_NOT_FOUND: {"model": NotFoundProduct}},
+)
+async def put_product(
+    id: Annotated[
+        int,
+        Path(
+            ge=0,
+            title="Product ID",
+            description="Id of the product you want to update.",
+        ),
+    ],
+    product: ProductUpdate,
+    connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
+) -> JSONResponse:
+    """Set new values for specified product columns.
+
+    Parameters
+    ----------
+    id : Annotated
+        Id of the product you want to update.
+    product : ProductUpdate
+        Product fields along with values that needs to be updated.
+    connection : Annotated[aiosqlite.Connection, Depends(get_db_connection)]
+        Connection to the database that was saved in FastAPI state.
+
+    Returns
+    -------
+    JSONResponse
+        Newly created product along with its assigned id.
+
+    Raises
+    ------
+    HTTPException
+        In case server encounteres an unexpected error.
+    """
+    try:
+
+        product_with_id = await update_product(id, product, connection)
+
+    except Exception as e:
+
+        await connection.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not update product with id={id}: {e}",
         )
 
     return JSONResponse(
