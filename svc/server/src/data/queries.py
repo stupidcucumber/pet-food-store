@@ -108,7 +108,7 @@ async def insert_product(product: Product, connection: Connection) -> ProductWit
 
 async def update_product(
     product_id: int, product: ProductUpdate, connection: Connection
-) -> ProductWithId:
+) -> Optional[ProductWithId]:
     """Update product with new values.
 
     Parameters
@@ -122,7 +122,7 @@ async def update_product(
 
     Returns
     -------
-    ProductWithId
+    Optional[ProductWithId]
         Newly created product.
     """
     async with connection.cursor() as cursor:
@@ -139,6 +139,47 @@ async def update_product(
         )
 
         result = await cursor.fetchone()
+
+    if result is None:
+
+        return None
+
+    await connection.commit()
+
+    return await _tuple2productWithId(result)
+
+
+async def deactivate_product(
+    product_id: int, connection: Connection
+) -> Optional[ProductWithId]:
+    """Deactivate product.
+
+    Parameters
+    ----------
+    product_id : int
+        Id of the product you want to delete.
+    connection : Connection
+        A connection to the database that contains products table.
+
+    Returns
+    -------
+    Optional[ProductWithId]
+        Product with Id that you deleted, if such exists.
+    """
+    async with connection.cursor() as cursor:
+
+        await cursor.execute(
+            "UPDATE products SET active=false WHERE product_id=? "
+            "RETURNING "
+            "product_id, product_name, product_description, quantity, price, active;",
+            [product_id],
+        )
+
+        result = await cursor.fetchone()
+
+    if result is None:
+
+        return None
 
     await connection.commit()
 

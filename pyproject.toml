@@ -7,7 +7,8 @@ exclude = [
 extend-ignore = [
     "E203",
     "D100",
-    "DOC105"
+    "DOC105",
+    "D104"
 ]
 per-file-ignores = """
     __init__.py: F401
