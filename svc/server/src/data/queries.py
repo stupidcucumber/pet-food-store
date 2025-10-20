@@ -1,6 +1,12 @@
 from typing import Optional, Tuple
 
 from aiosqlite import Connection
+from src.data.exceptions import (
+    NoActiveProducts,
+    ProductIsNotActive,
+    ProductNoSufficientStock,
+    ProductNotFound,
+)
 from src.data.models import (
     Product,
     ProductUpdate,
@@ -38,7 +44,7 @@ async def select_product(product_id: int, connection: Connection) -> ProductWith
 
     Raises
     ------
-    RuntimeError
+    ProductNotFound
         In case selected product does not exist.
     """
     async with connection.cursor() as cursor:
@@ -49,7 +55,7 @@ async def select_product(product_id: int, connection: Connection) -> ProductWith
 
     if item is None:
 
-        raise RuntimeError(f"There is no product with product_id={product_id}")
+        raise ProductNotFound(product_id=product_id)
 
     return await _tuple2productWithId(item)
 
@@ -136,7 +142,7 @@ async def update_product(
 
     Raises
     ------
-    RuntimeError
+    ProductNotFound
         In case selected product does not exist.
     """
     async with connection.cursor() as cursor:
@@ -156,7 +162,7 @@ async def update_product(
 
     if result is None:
 
-        raise RuntimeError(f"There is no product with product_id={product_id}")
+        raise ProductNotFound(product_id=product_id)
 
     await connection.commit()
 
@@ -182,7 +188,7 @@ async def deactivate_product(
 
     Raises
     ------
-    RuntimeError
+    ProductNotFound
         In case selected product does not exist.
     """
     async with connection.cursor() as cursor:
@@ -198,7 +204,7 @@ async def deactivate_product(
 
     if result is None:
 
-        raise RuntimeError(f"There is no product with product_id={product_id}")
+        raise ProductNotFound(product_id=product_id)
 
     await connection.commit()
 
@@ -226,7 +232,12 @@ async def sell_product(
 
     Raises
     ------
-    RuntimeError
+    ProductIsNotActive
+        In case selected product is not active.
+    ProductNoSufficientStock
+        In case selected product does not have a sufficient amount of items
+        available.
+    ProductNotFound
         In case selected product does not exist, is not active, or does not have
         enought quantity.
     """
@@ -234,11 +245,11 @@ async def sell_product(
 
     if not product.active:
 
-        raise RuntimeError("Selectected product is not active.")
+        raise ProductIsNotActive(product_id)
 
     if product.quantity < quantity.quantity:
 
-        raise RuntimeError("Not enough product to sell!")
+        raise ProductNoSufficientStock(product_id, product.quantity)
 
     async with connection.cursor() as cursor:
 
@@ -255,7 +266,7 @@ async def sell_product(
 
     if left_product is None:
 
-        raise RuntimeError(f"There is no product with product_id={product_id}")
+        raise ProductNotFound(product_id=product_id)
 
     await connection.commit()
 
@@ -274,17 +285,22 @@ async def select_active_nonzero_products(connection: Connection) -> ProductWithI
     -------
     ProductWithIdList
         List of all active products with quantities bigger than 0 in the database.
+
+    Raises
+    ------
+    NoActiveProducts
+        It is crucial that store has active products at the time of request.
     """
     async with connection.cursor() as cursor:
-        
+
         await cursor.execute("SELECT * FROM products WHERE active=true AND quantity>0;")
-        
+
         items = await cursor.fetchall()
-        
+
     if len(items) == 0:
-        
-        raise RuntimeError(f"There is no active in-stock products right now at the store!")
-    
+
+        raise NoActiveProducts()
+
     result = [await _tuple2productWithId(item) for item in items]
-        
+
     return ProductWithIdList(result)
