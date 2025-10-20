@@ -1,7 +1,7 @@
 from typing import Optional, Tuple
 
 from aiosqlite import Connection
-from src.data.models import ProductWithId, ProductWithIdList
+from src.data.models import Product, ProductWithId, ProductWithIdList
 
 
 async def _tuple2productWithId(item: Tuple) -> ProductWithId:
@@ -71,3 +71,36 @@ async def select_products(connection: Connection) -> ProductWithIdList:
         result.append(product)
 
     return ProductWithIdList(result)
+
+
+async def insert_product(product: Product, connection: Connection) -> ProductWithId:
+    """Insert product into the database.
+
+    Parameters
+    ----------
+    product : Product
+        Product parameters.
+    connection : Connection
+        A connection to the database that contains products table.
+
+    Returns
+    -------
+    ProductWithId
+        Newly created product.
+    """
+    async with connection.cursor() as cursor:
+
+        await cursor.execute(
+            "INSERT INTO products "
+            "(product_name, product_description, quantity, price, active) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "RETURNING "
+            "product_id, product_name, product_description, quantity, price, active;",
+            list(product.model_dump().values()),
+        )
+
+        result = await cursor.fetchone()
+
+    await connection.commit()
+
+    return await _tuple2productWithId(result)

@@ -6,8 +6,8 @@ import aiosqlite
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Path, Request, status
 from fastapi.responses import JSONResponse
-from src.data.models import NotFoundProduct, ProductWithId, ProductWithIdList
-from src.data.queries import select_product, select_products
+from src.data.models import NotFoundProduct, Product, ProductWithId, ProductWithIdList
+from src.data.queries import insert_product, select_product, select_products
 
 load_dotenv()
 
@@ -202,3 +202,45 @@ async def get_product(
         )
 
     return JSONResponse(content=product.model_dump(), status_code=status.HTTP_200_OK)
+
+
+@app.post("/api/product", response_model=ProductWithId)
+async def post_product(
+    product: Product,
+    connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
+) -> JSONResponse:
+    """Create a new product.
+
+    Parameters
+    ----------
+    product : Product
+        Product to create.
+    connection : Annotated[aiosqlite.Connection, Depends(get_db_connection)]
+        Connection to the database that was saved in FastAPI state.
+
+    Returns
+    -------
+    JSONResponse
+        Newly created product along with its assigned id.
+
+    Raises
+    ------
+    HTTPException
+        In case server encounteres an unexpected error.
+    """
+    try:
+
+        product_with_id = await insert_product(product, connection)
+
+    except Exception as e:
+
+        await connection.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not insert a product into the database: {e}",
+        )
+
+    return JSONResponse(
+        content=product_with_id.model_dump(), status_code=status.HTTP_200_OK
+    )
