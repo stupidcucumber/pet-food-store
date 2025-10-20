@@ -260,3 +260,31 @@ async def sell_product(
     await connection.commit()
 
     return await _tuple2productWithId(left_product)
+
+
+async def select_active_nonzero_products(connection: Connection) -> ProductWithIdList:
+    """Select active products that have at least some items left.
+
+    Parameters
+    ----------
+    connection : Connection
+        A connection to the database that contains products table.
+
+    Returns
+    -------
+    ProductWithIdList
+        List of all active products with quantities bigger than 0 in the database.
+    """
+    async with connection.cursor() as cursor:
+        
+        await cursor.execute("SELECT * FROM products WHERE active=true AND quantity>0;")
+        
+        items = await cursor.fetchall()
+        
+    if len(items) == 0:
+        
+        raise RuntimeError(f"There is no active in-stock products right now at the store!")
+    
+    result = [await _tuple2productWithId(item) for item in items]
+        
+    return ProductWithIdList(result)

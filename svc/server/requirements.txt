@@ -2,3 +2,5 @@ fastapi[standard]
 pydantic
 aiosqlite
 dotenv
+typing-extensions
+google-genai[aiohttp]
