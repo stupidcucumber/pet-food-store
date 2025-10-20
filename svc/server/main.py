@@ -12,12 +12,14 @@ from src.data.models import (
     ProductUpdate,
     ProductWithId,
     ProductWithIdList,
+    RequestedSellingQuantity,
 )
 from src.data.queries import (
     deactivate_product,
     insert_product,
     select_product,
     select_products,
+    sell_product,
     update_product,
 )
 
@@ -206,13 +208,6 @@ async def get_product(
             detail=f"Exception caught: {e}.",
         )
 
-    if not product:
-
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Product with id={id} is not found.",
-        )
-
     return JSONResponse(content=product.model_dump(), status_code=status.HTTP_200_OK)
 
 
@@ -309,13 +304,6 @@ async def put_product(
             detail=f"Could not update product with id={id}: {e}",
         )
 
-    if product_with_id is None:
-
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Product with product_id={id} is not present in the database.",
-        )
-
     return JSONResponse(
         content=product_with_id.model_dump(), status_code=status.HTTP_200_OK
     )
@@ -358,7 +346,7 @@ async def delete_product(
     """
     try:
 
-        deactivated_product = await deactivate_product(id, connection)
+        _ = await deactivate_product(id, connection)
 
     except Exception as e:
 
@@ -369,13 +357,38 @@ async def delete_product(
             detail=f"Could not delete product with id={id}: {e}",
         )
 
-    if deactivated_product is None:
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post(
+    "/app/products/{id}/sell",
+    response_model=ProductWithId,
+    responses={status.HTTP_404_NOT_FOUND: {"model": NotFoundProduct}},
+)
+async def post_product_sell(
+    id: Annotated[
+        int,
+        Path(
+            gt=0, title="Product ID", description="Id of the product you want to sell."
+        ),
+    ],
+    quantity: RequestedSellingQuantity,
+    connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
+) -> JSONResponse:
+
+    try:
+
+        left_product = await sell_product(id, quantity, connection)
+
+    except Exception as e:
 
         await connection.rollback()
 
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Product with product_id={id} is not present in the database.",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not sell product with id={id}: {e}",
         )
 
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return JSONResponse(
+        content=left_product.model_dump(), status_code=status.HTTP_200_OK
+    )
