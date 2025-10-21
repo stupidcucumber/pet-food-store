@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 from typing import Annotated, AsyncGenerator
@@ -27,8 +28,12 @@ from src.data.queries import (
     update_product,
 )
 from src.llm.geminillm import GeminiRecommender
+from src.logger import start_logging, stop_logging
 
 load_dotenv()
+
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -48,6 +53,8 @@ async def lifespan_event(app: FastAPI) -> AsyncGenerator[None, None]:
     None
         Asynchronous generator of lifespan events.
     """
+    start_logging()
+
     app.state.database = await aiosqlite.connect(
         os.environ.get("DATABASE_PATH", "default.sqlite")
     )
@@ -66,13 +73,21 @@ async def lifespan_event(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await app.state.database.commit()
 
+    logger.info("Database has been initialized.")
+
     try:
 
         yield
 
     finally:
 
+        logger.info("Closing the connection to the database.")
+
         await app.state.database.close()
+
+        logger.info("Logger is stopping.")
+
+        stop_logging()
 
 
 async def get_db_connection(request: Request) -> aiosqlite.Connection:
@@ -115,6 +130,8 @@ async def database_error_exception_handler(
     request: Request, exc: aiosqlite.Error
 ) -> JSONResponse:
 
+    logger.error("Caught an database error.", exc_info=True)
+
     await request.app.state.database.rollback()
 
     return JSONResponse(
@@ -128,6 +145,8 @@ async def database_error_exception_handler(
 @app.exception_handler(APIError)
 async def gemini_api_exception_handler(request: Request, exc: APIError) -> JSONResponse:
 
+    logger.error("Caught an error while sending API request to Gemini.", exc_info=True)
+
     await request.app.state.database.rollback()
 
     return JSONResponse(
@@ -139,6 +158,10 @@ async def gemini_api_exception_handler(request: Request, exc: APIError) -> JSONR
 async def pet_store_custom_exceptions_handler(
     request: Request, exc: PetStoreException
 ) -> JSONResponse:
+
+    logger.error(
+        "Caught an error while sending API request to the store itself.", exc_info=True
+    )
 
     await request.app.state.database.rollback()
 
@@ -189,19 +212,13 @@ async def api_status(
 async def get_products(
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)]
 ) -> JSONResponse:
-    """Get all products from a database.
+    logger.info("Request for all products in the database accepted.")
 
-    Parameters
-    ----------
-    connection : Annotated[aiosqlite.Connection, Depends(get_db_connection)]
-        Connection to the database that was saved in FastAPI state.
-
-    Returns
-    -------
-    JSONResponse
-        List of all products in the database.
-    """
     products = await select_products(connection=connection)
+
+    logger.info(
+        f"Number of all extracted products from the database: {len(products.root)}."
+    )
 
     return JSONResponse(content=products.model_dump(), status_code=status.HTTP_200_OK)
 
@@ -222,21 +239,13 @@ async def get_product(
     ],
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
 ) -> JSONResponse:
-    """Get product by id.
+    logger.info(
+        f"Request for selecting info about a product with product_id={id} accepted."
+    )
 
-    Parameters
-    ----------
-    id : Annotated
-        ID of the product to get.
-    connection : Annotated[aiosqlite.Connection, Depends(get_db_connection)]
-        Connection to the database that was saved in FastAPI state.
-
-    Returns
-    -------
-    JSONResponse
-        Product with the specified id if such exists.
-    """
     product = await select_product(id, connection)
+
+    logger.info(f"Info about the extracted product: {product.model_dump_json()}.")
 
     return JSONResponse(content=product.model_dump(), status_code=status.HTTP_200_OK)
 
@@ -246,21 +255,15 @@ async def post_product(
     product: Product,
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
 ) -> JSONResponse:
-    """Create a new product.
+    logger.info(
+        f"Request for inserting a new product into the database {product.model_dump_json()} accepted."
+    )
 
-    Parameters
-    ----------
-    product : Product
-        Product to create.
-    connection : Annotated[aiosqlite.Connection, Depends(get_db_connection)]
-        Connection to the database that was saved in FastAPI state.
-
-    Returns
-    -------
-    JSONResponse
-        Newly created product along with its assigned id.
-    """
     product_with_id = await insert_product(product, connection)
+
+    logger.info(
+        f"Insrted product into the database: {product_with_id.model_dump_json()}."
+    )
 
     return JSONResponse(
         content=product_with_id.model_dump(), status_code=status.HTTP_200_OK
@@ -284,23 +287,13 @@ async def put_product(
     product: ProductUpdate,
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
 ) -> JSONResponse:
-    """Set new values for specified product columns.
+    logger.info(
+        f"Request for changing product_id={id} with params={product.model_dump_json()} accepted."
+    )
 
-    Parameters
-    ----------
-    id : Annotated
-        Id of the product you want to update.
-    product : ProductUpdate
-        Product fields along with values that needs to be updated.
-    connection : Annotated[aiosqlite.Connection, Depends(get_db_connection)]
-        Connection to the database that was saved in FastAPI state.
-
-    Returns
-    -------
-    JSONResponse
-        Newly created product along with its assigned id.
-    """
     product_with_id = await update_product(id, product, connection)
+
+    logger.info(f"Changed product {product_with_id.model_dump_json()}.")
 
     return JSONResponse(
         content=product_with_id.model_dump(), status_code=status.HTTP_200_OK
@@ -322,22 +315,11 @@ async def delete_product(
     ],
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
 ) -> Response:
-    """Set "active" column to false, virtually deleting product from database.
+    logger.info(f"Request for deleting product_id={id} accepted.")
 
-    Parameters
-    ----------
-    id : Annotated
-        Id of the product you want to delete.
-    connection : Annotated[aiosqlite.Connection, Depends(get_db_connection)]
-        Connection to the database that was saved in FastAPI state.
+    deleted_product = await deactivate_product(id, connection)
 
-    Returns
-    -------
-    Response
-        A response with status_code=204 if everything is right. No body is
-        returned.
-    """
-    _ = await deactivate_product(id, connection)
+    logger.info(f"Deleted product {deleted_product.model_dump_json()}.")
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -357,7 +339,15 @@ async def post_product_sell(
     quantity: RequestedSellingQuantity,
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
 ) -> JSONResponse:
+    logger.info(
+        f"Request for selling quantity={quantity.quantity} of product_id={id} accepted."
+    )
+
     left_product = await sell_product(id, quantity, connection)
+
+    logger.info(
+        f"Product has bee sold. New product is {left_product.model_dump_json()}."
+    )
 
     return JSONResponse(
         content=left_product.model_dump(), status_code=status.HTTP_200_OK
@@ -369,6 +359,12 @@ async def post_recommendation(
     description: RecommendationPetDescription,
     gemini_recommender: Annotated[GeminiRecommender, Depends(get_gemini_recommender)],
 ) -> JSONResponse:
+    logger.info(
+        f"Request for a recommendation with description {description.model_dump_json()} accepted."
+    )
+
     response = await gemini_recommender.recommend(description)
+
+    logger.info(f"Received recommendation {response.model_dump_json()}.")
 
     return JSONResponse(content=response.model_dump(), status_code=status.HTTP_200_OK)
