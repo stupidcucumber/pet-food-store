@@ -58,11 +58,22 @@ cd svc/server
 fastapi dev main.py
 ```
 
-By default, server will start on http://locahost:80/docs.
+By default, server will start on http://locahost:8000/docs.
+
+## How to authorize DML for products?
+
+If you are seller, you will have to prove it! Quite simple authorization consists of env variable "SECRET_KEY" which is "password" by default. This key must be passed as a header "X-API-Key" to authorize the following endpoints:
+
+- POST /api/product
+- PUT /api/product/{id}
+- DELETE /api/product/{id}
+- POST /api/product/{id}/sell
+
+Everything else does not have to be authorized.
 
 ## TODO
 - ✅ Add logging.
 - ✅ Add Dockerfile & Docker Compose file.
 - ✅ Rewrite docstrings in server API, so it will look more readable in the OpenAPI docs.
-- Add basic authorization for seller.
+- ✅ Add basic authorization for seller.
 - Add ChatGPT to the available recommenders & Implement Chain-of-Responsibility Pattern.

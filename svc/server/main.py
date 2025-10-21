@@ -1,11 +1,20 @@
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Annotated, AsyncGenerator
+from typing import Annotated, AsyncGenerator, Optional
 
 import aiosqlite
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Path, Request, Response, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Path,
+    Request,
+    Response,
+    status,
+)
 from fastapi.responses import JSONResponse
 from google.genai.errors import APIError
 from src.data.exceptions import PetStoreException
@@ -120,6 +129,34 @@ async def get_gemini_recommender(request: Request) -> GeminiRecommender:
         Recommender that uses GeminiAPI.
     """
     return request.app.state.gemini_recommender
+
+
+async def verify_api_key(
+    x_api_key: Annotated[
+        Optional[str],
+        Header(
+            title="Secret API_KEY",
+            description="API KEY to access modifying products database.",
+            example="password",
+        ),
+    ]
+) -> bool:
+
+    if x_api_key is None:
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No key provided to access this endpoint.",
+        )
+
+    if x_api_key != os.environ.get("SECRET_KEY"):
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Key does not match the authorized one.",
+        )
+
+    return True
 
 
 app = FastAPI(lifespan=lifespan_event)
@@ -274,17 +311,22 @@ async def get_product(
     "/api/product",
     response_model=ProductWithId,
     summary="Create product",
-    description="Add a new product into the database.",
+    description="Add a new product into the database. Required authorization to access.",
     responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case no X-API-Key was passed, or X-API-Key is incorrect.",
+        },
         status.HTTP_500_INTERNAL_SERVER_ERROR: {
             "model": DefaultErrorModel,
             "description": "Returns in case of a problem with Database Operations.",
-        }
+        },
     },
 )
 async def post_product(
     product: Product,
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
+    _: Annotated[bool, Depends(verify_api_key)],
 ) -> JSONResponse:
     logger.info(
         f"Request for inserting a new product into the database {product.model_dump_json()} accepted."
@@ -307,6 +349,10 @@ async def post_product(
     summary="Update existing product",
     description="Update existing product with new values by its product_id.",
     responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case no X-API-Key was passed, or X-API-Key is incorrect.",
+        },
         status.HTTP_404_NOT_FOUND: {
             "model": DefaultErrorModel,
             "description": "Returns in case a product with such id does not exist.",
@@ -328,6 +374,7 @@ async def put_product(
     ],
     product: ProductUpdate,
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
+    _: Annotated[bool, Depends(verify_api_key)],
 ) -> JSONResponse:
     logger.info(
         f"Request for changing product_id={id} with params={product.model_dump_json()} accepted."
@@ -348,6 +395,10 @@ async def put_product(
     summary="Delete existing product",
     description="Delete existing product from the database by its product_id.",
     responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case no X-API-Key was passed, or X-API-Key is incorrect.",
+        },
         status.HTTP_404_NOT_FOUND: {
             "model": DefaultErrorModel,
             "description": "Returns in case a product with such id does not exist.",
@@ -368,6 +419,7 @@ async def delete_product(
         ),
     ],
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
+    _: Annotated[bool, Depends(verify_api_key)],
 ) -> Response:
     logger.info(f"Request for deleting product_id={id} accepted.")
 
@@ -384,6 +436,10 @@ async def delete_product(
     summary="Sell existing product",
     description="Sell specified amount of existing product from the database by its product_id.",
     responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case no X-API-Key was passed, or X-API-Key is incorrect.",
+        },
         status.HTTP_404_NOT_FOUND: {
             "model": DefaultErrorModel,
             "description": "Returns in case a product with such id does not exist.",
@@ -407,6 +463,7 @@ async def post_product_sell(
     ],
     quantity: RequestedSellingQuantity,
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
+    _: Annotated[bool, Depends(verify_api_key)],
 ) -> JSONResponse:
     logger.info(
         f"Request for selling quantity={quantity.quantity} of product_id={id} accepted."
