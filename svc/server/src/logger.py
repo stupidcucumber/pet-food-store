@@ -1,4 +1,5 @@
 import logging
+import os
 import queue
 from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler
 
@@ -10,7 +11,12 @@ def start_logging() -> None:
 
     log_queue = queue.Queue(-1)
     log_listener = QueueListener(
-        log_queue, RotatingFileHandler("app.log", maxBytes=1024 * 1024, backupCount=5)
+        log_queue,
+        RotatingFileHandler(
+            os.environ.get("LOGFILE_PATH", "app.log"),
+            maxBytes=1024 * 1024,
+            backupCount=5,
+        ),
     )
     log_listener.start()
 
