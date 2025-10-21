@@ -187,7 +187,8 @@ async def gemini_api_exception_handler(request: Request, exc: APIError) -> JSONR
     await request.app.state.database.rollback()
 
     return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"detail": exc}
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": exc.message},
     )
 
 
