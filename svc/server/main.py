@@ -209,6 +209,8 @@ async def api_status(
 @app.get(
     "/api/products",
     response_model=ProductWithIdList,
+    summary="All products",
+    description="Get all products from the database.",
     responses={
         status.HTTP_500_INTERNAL_SERVER_ERROR: {
             "model": DefaultErrorModel,
@@ -233,6 +235,8 @@ async def get_products(
 @app.get(
     "/api/products/{id}",
     response_model=ProductWithId,
+    summary="A specific product",
+    description="Get a specific product from the database by its product_id",
     responses={
         status.HTTP_404_NOT_FOUND: {
             "model": DefaultErrorModel,
@@ -269,6 +273,8 @@ async def get_product(
 @app.post(
     "/api/product",
     response_model=ProductWithId,
+    summary="Create product",
+    description="Add a new product into the database.",
     responses={
         status.HTTP_500_INTERNAL_SERVER_ERROR: {
             "model": DefaultErrorModel,
@@ -298,6 +304,8 @@ async def post_product(
 @app.put(
     "/api/product/{id}",
     response_model=ProductWithId,
+    summary="Update existing product",
+    description="Update existing product with new values by its product_id.",
     responses={
         status.HTTP_404_NOT_FOUND: {
             "model": DefaultErrorModel,
@@ -337,6 +345,8 @@ async def put_product(
 @app.delete(
     "/app/product/{id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete existing product",
+    description="Delete existing product from the database by its product_id.",
     responses={
         status.HTTP_404_NOT_FOUND: {
             "model": DefaultErrorModel,
@@ -371,6 +381,8 @@ async def delete_product(
 @app.post(
     "/app/products/{id}/sell",
     response_model=ProductWithId,
+    summary="Sell existing product",
+    description="Sell specified amount of existing product from the database by its product_id.",
     responses={
         status.HTTP_404_NOT_FOUND: {
             "model": DefaultErrorModel,
@@ -414,6 +426,8 @@ async def post_product_sell(
 @app.post(
     "/app/recommendation",
     response_model=Recommendation,
+    summary="Get a recommendation",
+    description="Ask an LLM model like Gemini 2.5 Flash which food will suit your pet best.",
     responses={
         status.HTTP_409_CONFLICT: {
             "model": DefaultErrorModel,
