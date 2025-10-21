@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 from typing import Annotated, AsyncGenerator
@@ -27,8 +28,12 @@ from src.data.queries import (
     update_product,
 )
 from src.llm.geminillm import GeminiRecommender
+from src.logger import start_logging, stop_logging
 
 load_dotenv()
+
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -48,6 +53,8 @@ async def lifespan_event(app: FastAPI) -> AsyncGenerator[None, None]:
     None
         Asynchronous generator of lifespan events.
     """
+    start_logging()
+
     app.state.database = await aiosqlite.connect(
         os.environ.get("DATABASE_PATH", "default.sqlite")
     )
@@ -66,13 +73,21 @@ async def lifespan_event(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await app.state.database.commit()
 
+    logger.info("Database has been initialized.")
+
     try:
 
         yield
 
     finally:
 
+        logger.info("Closing the connection to the database.")
+
         await app.state.database.close()
+
+        logger.info("Logger is stopping.")
+
+        stop_logging()
 
 
 async def get_db_connection(request: Request) -> aiosqlite.Connection:
@@ -115,6 +130,8 @@ async def database_error_exception_handler(
     request: Request, exc: aiosqlite.Error
 ) -> JSONResponse:
 
+    logger.error("Caught an database error.", exc_info=True)
+
     await request.app.state.database.rollback()
 
     return JSONResponse(
@@ -128,6 +145,8 @@ async def database_error_exception_handler(
 @app.exception_handler(APIError)
 async def gemini_api_exception_handler(request: Request, exc: APIError) -> JSONResponse:
 
+    logger.error("Caught an error while sending API request to Gemini.", exc_info=True)
+
     await request.app.state.database.rollback()
 
     return JSONResponse(
@@ -139,6 +158,10 @@ async def gemini_api_exception_handler(request: Request, exc: APIError) -> JSONR
 async def pet_store_custom_exceptions_handler(
     request: Request, exc: PetStoreException
 ) -> JSONResponse:
+
+    logger.error(
+        "Caught an error while sending API request to the store itself.", exc_info=True
+    )
 
     await request.app.state.database.rollback()
 
