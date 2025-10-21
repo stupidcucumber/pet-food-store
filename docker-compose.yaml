@@ -1,0 +1,12 @@
+services:
+  server:
+    build:
+      context: svc/server
+      dockerfile: Dockerfile
+    env_file:
+      - svc/server/.env
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
