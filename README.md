@@ -1,5 +1,9 @@
 # Pet Store API
 
+## How to access OpenAPI generated documentation?
+
+To access it you will have to start the server (check "How to build and run?" section). Then openapi.json must be accessible at the http://localhost:80/openapi.json
+
 ## How to build and run?
 
 1. First you will need to create an environment:
