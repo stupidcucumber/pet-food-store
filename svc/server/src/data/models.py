@@ -59,7 +59,7 @@ class ProductWithIdList(RootModel):
     root: List[ProductWithId]
 
 
-class NotFoundProduct(BaseModel):
+class DefaultErrorModel(BaseModel):
     """Model for Swagger UI."""
 
     detail: str = Field(example="Product with id=1123 is not found.")

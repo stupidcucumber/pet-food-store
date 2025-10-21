@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from google.genai.errors import APIError
 from src.data.exceptions import PetStoreException
 from src.data.models import (
-    NotFoundProduct,
+    DefaultErrorModel,
     Product,
     ProductUpdate,
     ProductWithId,
@@ -137,7 +137,7 @@ async def database_error_exception_handler(
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
-            "database_error": exc.sqlite_errorname,
+            "detail": exc.sqlite_errorname,
         },
     )
 
@@ -150,7 +150,7 @@ async def gemini_api_exception_handler(request: Request, exc: APIError) -> JSONR
     await request.app.state.database.rollback()
 
     return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"gemini_error": exc}
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"detail": exc}
     )
 
 
@@ -165,9 +165,7 @@ async def pet_store_custom_exceptions_handler(
 
     await request.app.state.database.rollback()
 
-    return JSONResponse(
-        status_code=exc.status_code, content={"store_error": exc.detail}
-    )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
 @app.get("/api/status")
@@ -226,7 +224,7 @@ async def get_products(
 @app.get(
     "/api/products/{id}",
     response_model=ProductWithId,
-    responses={status.HTTP_404_NOT_FOUND: {"model": NotFoundProduct}},
+    responses={status.HTTP_404_NOT_FOUND: {"model": DefaultErrorModel}},
 )
 async def get_product(
     id: Annotated[
@@ -273,7 +271,7 @@ async def post_product(
 @app.put(
     "/api/product/{id}",
     response_model=ProductWithId,
-    responses={status.HTTP_404_NOT_FOUND: {"model": NotFoundProduct}},
+    responses={status.HTTP_404_NOT_FOUND: {"model": DefaultErrorModel}},
 )
 async def put_product(
     id: Annotated[
@@ -302,7 +300,7 @@ async def put_product(
 
 @app.delete(
     "/app/product/{id}",
-    responses={status.HTTP_404_NOT_FOUND: {"model": NotFoundProduct}},
+    responses={status.HTTP_404_NOT_FOUND: {"model": DefaultErrorModel}},
 )
 async def delete_product(
     id: Annotated[
@@ -327,7 +325,7 @@ async def delete_product(
 @app.post(
     "/app/products/{id}/sell",
     response_model=ProductWithId,
-    responses={status.HTTP_404_NOT_FOUND: {"model": NotFoundProduct}},
+    responses={status.HTTP_404_NOT_FOUND: {"model": DefaultErrorModel}},
 )
 async def post_product_sell(
     id: Annotated[
