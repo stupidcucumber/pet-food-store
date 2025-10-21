@@ -76,4 +76,9 @@ Everything else does not have to be authorized.
 - ✅ Add Dockerfile & Docker Compose file.
 - ✅ Rewrite docstrings in server API, so it will look more readable in the OpenAPI docs.
 - ✅ Add basic authorization for seller.
-- Add ChatGPT to the available recommenders & Implement Chain-of-Responsibility Pattern.
+
+## What can be Improved?
+- Add ChatGPT to the available recommenders & Implement Chain-of-Responsibility Pattern. This way we can proof service from sudden connections issues.
+- Instead of user-defined token generate a new one upon each start of the application. This way we can guarantee that generated token is long and complex enough + it will not depend on a seller at all.
+- Add more informative examples of exceptions. Right now we have 500 Error, that hase an example: "product_id=... is not present", but this error will 100% never be thrown with such detail.
+- Add end-to-end tests + integrational tests for Recommenders. This will help streamline development process.

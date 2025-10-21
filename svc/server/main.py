@@ -205,23 +205,14 @@ async def pet_store_custom_exceptions_handler(
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
-@app.get("/api/status")
+@app.get(
+    "/api/status",
+    summary="Check health",
+    description="Get status of components of the API.",
+)
 async def api_status(
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)]
 ) -> JSONResponse:
-    """Get status of components of the API.
-
-    Parameters
-    ----------
-    connection : Annotated[aiosqlite.Connection, Depends(get_db_connection)]
-        Connection to the database that was saved in FastAPI state.
-
-    Returns
-    -------
-    JSONResponse
-        In case of success returns status 200. Contains status for each integral
-        component of the service.
-    """
     database_alive = True
 
     if not connection:
