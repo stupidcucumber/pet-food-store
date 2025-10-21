@@ -43,7 +43,7 @@ docker image build . -t pet-server
 And then run the image with the following command:
 
 ```bash
-cd ~
+cd -
 docker run --rm -p 8081:8081 --mount type=bind,src=./data,dst=/app/data --mount type=bind,src=./logs,dst=/app/logs -d pet-server
 ```
 
