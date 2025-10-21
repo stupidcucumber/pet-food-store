@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from google.genai.errors import APIError
 from src.data.exceptions import PetStoreException
 from src.data.models import (
-    NotFoundProduct,
+    DefaultErrorModel,
     Product,
     ProductUpdate,
     ProductWithId,
@@ -137,7 +137,7 @@ async def database_error_exception_handler(
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
-            "database_error": exc.sqlite_errorname,
+            "detail": exc.sqlite_errorname,
         },
     )
 
@@ -150,7 +150,7 @@ async def gemini_api_exception_handler(request: Request, exc: APIError) -> JSONR
     await request.app.state.database.rollback()
 
     return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"gemini_error": exc}
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"detail": exc}
     )
 
 
@@ -165,9 +165,7 @@ async def pet_store_custom_exceptions_handler(
 
     await request.app.state.database.rollback()
 
-    return JSONResponse(
-        status_code=exc.status_code, content={"store_error": exc.detail}
-    )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
 @app.get("/api/status")
@@ -208,7 +206,18 @@ async def api_status(
     )
 
 
-@app.get("/api/products", response_model=ProductWithIdList, description="")
+@app.get(
+    "/api/products",
+    response_model=ProductWithIdList,
+    summary="All products",
+    description="Get all products from the database.",
+    responses={
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Database Operations.",
+        }
+    },
+)
 async def get_products(
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)]
 ) -> JSONResponse:
@@ -226,7 +235,18 @@ async def get_products(
 @app.get(
     "/api/products/{id}",
     response_model=ProductWithId,
-    responses={status.HTTP_404_NOT_FOUND: {"model": NotFoundProduct}},
+    summary="A specific product",
+    description="Get a specific product from the database by its product_id",
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case a product with such id does not exist.",
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Database Operations.",
+        },
+    },
 )
 async def get_product(
     id: Annotated[
@@ -250,7 +270,18 @@ async def get_product(
     return JSONResponse(content=product.model_dump(), status_code=status.HTTP_200_OK)
 
 
-@app.post("/api/product", response_model=ProductWithId)
+@app.post(
+    "/api/product",
+    response_model=ProductWithId,
+    summary="Create product",
+    description="Add a new product into the database.",
+    responses={
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Database Operations.",
+        }
+    },
+)
 async def post_product(
     product: Product,
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
@@ -273,7 +304,18 @@ async def post_product(
 @app.put(
     "/api/product/{id}",
     response_model=ProductWithId,
-    responses={status.HTTP_404_NOT_FOUND: {"model": NotFoundProduct}},
+    summary="Update existing product",
+    description="Update existing product with new values by its product_id.",
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case a product with such id does not exist.",
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Database Operations.",
+        },
+    },
 )
 async def put_product(
     id: Annotated[
@@ -302,7 +344,19 @@ async def put_product(
 
 @app.delete(
     "/app/product/{id}",
-    responses={status.HTTP_404_NOT_FOUND: {"model": NotFoundProduct}},
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete existing product",
+    description="Delete existing product from the database by its product_id.",
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case a product with such id does not exist.",
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Database Operations.",
+        },
+    },
 )
 async def delete_product(
     id: Annotated[
@@ -327,7 +381,22 @@ async def delete_product(
 @app.post(
     "/app/products/{id}/sell",
     response_model=ProductWithId,
-    responses={status.HTTP_404_NOT_FOUND: {"model": NotFoundProduct}},
+    summary="Sell existing product",
+    description="Sell specified amount of existing product from the database by its product_id.",
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case a product with such id does not exist.",
+        },
+        status.HTTP_409_CONFLICT: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case specified product do not have a sufficient quantity.",
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Database Operations.",
+        },
+    },
 )
 async def post_product_sell(
     id: Annotated[
@@ -354,7 +423,22 @@ async def post_product_sell(
     )
 
 
-@app.post("/app/recommendation", response_model=Recommendation)
+@app.post(
+    "/app/recommendation",
+    response_model=Recommendation,
+    summary="Get a recommendation",
+    description="Ask an LLM model like Gemini 2.5 Flash which food will suit your pet best.",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case no active products with quantity larger than 0 found.",
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Google API, or Database Operations.",
+        },
+    },
+)
 async def post_recommendation(
     description: RecommendationPetDescription,
     gemini_recommender: Annotated[GeminiRecommender, Depends(get_gemini_recommender)],

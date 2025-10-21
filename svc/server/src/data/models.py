@@ -6,10 +6,19 @@ from pydantic import BaseModel, Field, RootModel
 class Product(BaseModel):
     """Pet food store product."""
 
-    product_name: str = Field(max_length=255)
-    product_description: str
+    product_name: str = Field(
+        title="Product name", example="Purine Dogs Max", max_length=255
+    )
+    product_description: str = Field(
+        title="Product description",
+        description="Description of the product, for what pets is most suitable etc.",
+        example="Most suitable for chill dogs with sleepy personality.",
+    )
     quantity: int = Field(
-        description="Number of available units in the store. Cannot be negative.", ge=0
+        title="Available product units",
+        description="Number of available units in the store. Cannot be negative.",
+        example=100,
+        ge=0,
     )
     price: float = Field(
         description="Price for a single unit in the store. Cannot be negative.", gt=0
@@ -20,11 +29,28 @@ class Product(BaseModel):
 class ProductUpdate(BaseModel):
     """Product, but with all fields non-required."""
 
-    product_name: Optional[str] = Field(None, max_length=255)
-    product_description: Optional[str] = Field(None)
-    quantity: Optional[int] = Field(None, ge=0)
-    price: Optional[float] = Field(None, gt=0)
-    active: Optional[bool] = Field(None)
+    product_name: Optional[str] = Field(
+        None, title="Product name", example="Purine Dogs Max", max_length=255
+    )
+    product_description: Optional[str] = Field(
+        None,
+        title="Product description",
+        description="New description of the product, for what pets is most suitable.",
+        example="Most suitable for chill dogs with sleepy personality.",
+    )
+    quantity: Optional[int] = Field(
+        None,
+        title="Available product units",
+        description="New number of available units in the store. Cannot be negative.",
+        example=100,
+        ge=0,
+    )
+    price: Optional[float] = Field(
+        None,
+        description="New price for a single unit in the store. Cannot be negative.",
+        gt=0,
+    )
+    active: Optional[bool] = Field(None, description="New whether product can be sold.")
 
 
 class ProductWithId(Product):
@@ -36,13 +62,24 @@ class ProductWithId(Product):
 class RequestedSellingQuantity(BaseModel):
     """Selling quantity of the product."""
 
-    quantity: int = Field(gt=0, description="Quantity of the product you want to sell.")
+    quantity: int = Field(
+        title="Units to sell",
+        description="Number of units you want to sell. Cannot be negative.",
+        example=100,
+        ge=0,
+    )
 
 
 class RecommendationPetDescription(BaseModel):
     """Description for the pet."""
 
-    description: str = Field(min_length=5, max_length=1500)
+    description: str = Field(
+        min_length=5,
+        max_length=1500,
+        title="Pet description",
+        description="Detailed description of your pet: age, weight, breed etc.",
+        example="A husky, 5 years old, weights 10 kg, very active and playful.",
+    )
 
 
 class Recommendation(BaseModel):
@@ -59,7 +96,7 @@ class ProductWithIdList(RootModel):
     root: List[ProductWithId]
 
 
-class NotFoundProduct(BaseModel):
+class DefaultErrorModel(BaseModel):
     """Model for Swagger UI."""
 
     detail: str = Field(example="Product with id=1123 is not found.")
