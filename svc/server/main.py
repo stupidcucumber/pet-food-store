@@ -206,7 +206,16 @@ async def api_status(
     )
 
 
-@app.get("/api/products", response_model=ProductWithIdList, description="")
+@app.get(
+    "/api/products",
+    response_model=ProductWithIdList,
+    responses={
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Database Operations.",
+        }
+    },
+)
 async def get_products(
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)]
 ) -> JSONResponse:
@@ -224,7 +233,16 @@ async def get_products(
 @app.get(
     "/api/products/{id}",
     response_model=ProductWithId,
-    responses={status.HTTP_404_NOT_FOUND: {"model": DefaultErrorModel}},
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case a product with such id does not exist.",
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Database Operations.",
+        },
+    },
 )
 async def get_product(
     id: Annotated[
@@ -248,7 +266,16 @@ async def get_product(
     return JSONResponse(content=product.model_dump(), status_code=status.HTTP_200_OK)
 
 
-@app.post("/api/product", response_model=ProductWithId)
+@app.post(
+    "/api/product",
+    response_model=ProductWithId,
+    responses={
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Database Operations.",
+        }
+    },
+)
 async def post_product(
     product: Product,
     connection: Annotated[aiosqlite.Connection, Depends(get_db_connection)],
@@ -271,7 +298,16 @@ async def post_product(
 @app.put(
     "/api/product/{id}",
     response_model=ProductWithId,
-    responses={status.HTTP_404_NOT_FOUND: {"model": DefaultErrorModel}},
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case a product with such id does not exist.",
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Database Operations.",
+        },
+    },
 )
 async def put_product(
     id: Annotated[
@@ -300,7 +336,17 @@ async def put_product(
 
 @app.delete(
     "/app/product/{id}",
-    responses={status.HTTP_404_NOT_FOUND: {"model": DefaultErrorModel}},
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case a product with such id does not exist.",
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Database Operations.",
+        },
+    },
 )
 async def delete_product(
     id: Annotated[
@@ -325,7 +371,20 @@ async def delete_product(
 @app.post(
     "/app/products/{id}/sell",
     response_model=ProductWithId,
-    responses={status.HTTP_404_NOT_FOUND: {"model": DefaultErrorModel}},
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case a product with such id does not exist.",
+        },
+        status.HTTP_409_CONFLICT: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case specified product do not have a sufficient quantity.",
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Database Operations.",
+        },
+    },
 )
 async def post_product_sell(
     id: Annotated[
@@ -352,7 +411,20 @@ async def post_product_sell(
     )
 
 
-@app.post("/app/recommendation", response_model=Recommendation)
+@app.post(
+    "/app/recommendation",
+    response_model=Recommendation,
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case no active products with quantity larger than 0 found.",
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": DefaultErrorModel,
+            "description": "Returns in case of a problem with Google API, or Database Operations.",
+        },
+    },
+)
 async def post_recommendation(
     description: RecommendationPetDescription,
     gemini_recommender: Annotated[GeminiRecommender, Depends(get_gemini_recommender)],
