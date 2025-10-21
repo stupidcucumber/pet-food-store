@@ -14,7 +14,7 @@ def start_logging() -> None:
     )
     log_listener.start()
 
-    logging.basicConfig(handlers=[QueueHandler(log_queue)], level=logging.ERROR)
+    logging.basicConfig(handlers=[QueueHandler(log_queue)], level=logging.INFO)
 
 
 def stop_logging() -> None:
