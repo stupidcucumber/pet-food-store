@@ -2,7 +2,7 @@
 
 ## How to access OpenAPI generated documentation?
 
-To access it you will have to start the server (check "How to build and run?" section). Then openapi.json must be accessible at the http://localhost:80/openapi.json
+To access it you will have to start the server (check "How to build and run?" section). Then openapi.json must be accessible at the http://localhost:8000/openapi.json
 
 ## How to build and run?
 
