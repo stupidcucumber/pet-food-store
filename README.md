@@ -82,3 +82,4 @@ Everything else does not have to be authorized.
 - Instead of user-defined token generate a new one upon each start of the application. This way we can guarantee that generated token is long and complex enough + it will not depend on a seller at all.
 - Add more informative examples of exceptions. Right now we have 500 Error, that hase an example: "product_id=... is not present", but this error will 100% never be thrown with such detail.
 - Add end-to-end tests + integrational tests for Recommenders. This will help streamline development process.
+- Add "seles" table with columns: "sell_id", "product_id", "quantity", "cancelled". We can keep track of all sales and get an insights from this, like the amount of "cancells" for each product, or how much money we get from sales of each product.
